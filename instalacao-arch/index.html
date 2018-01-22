@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2018.01.20-arch-instalacao-xfce</title>
+  <link rel="stylesheet" href="https://stackedit.io/style.css" />
+<style>
+pre > code {
+    overflow-x: auto;
+    white-space: pre;
+}
+</style>
+</head>
+
+<body class="stackedit">
+	<div class="stackedit__html"><h1 id="instalação-arch-linux">Instalação Arch Linux por <a href="https://www.github.com/MatMercer">Mateus Mercer</a></h1>
+		Esta instalação foi feita em <b>um ssd kingston 256gb externo</b>, pois nçao tenho dinheiro para comprar um notebook. <b>Esta instalação é para um desktop xfce4, visando a portabilidade (boot em diferentes máquinas)</b>. Tive que tomar algumas decisões para aumentar a portabilidade quando eu fizer boot em diferentes máquinas, por exemplo, no /etc/fdtab eu tive que usar UUID em vez de /dev/XXX. Usei o f2fs para o / e brtfs para o /boot com o root criptografado com LUKS. Tenho que agradecer ao <a href="https://www.youtube.com/watch?v=cvLiQzKPcY8">criador deste vídeo</a>, por introduzir o arch linux <a href="https://www.youtube.com/watch?v=AQxk1uUQ-pQ">e esse</a> por tornar a parte de criptografar o drive muito mais fácil de entender.
+<h2 id="base">Base</h2>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment">## Mudar teclado para abnt2</span>
+loadkeys br-abnt2
+<span class="token comment">## para wifi</span>
+wifi-menu
+<span class="token comment">## Mudar a fonte</span>
+setfont lat9-16
+
+<span class="token comment">## testa coneccao com a internet</span>
+<span class="token function">ping</span> -c 3 www.google.com
+
+<span class="token comment">## mostra as particoes</span>
+<span class="token function">fdisk</span> -l
+
+<span class="token comment">## comecar o particionamento</span>
+<span class="token function">cfdisk</span> /dev/sda <span class="token comment">## se for GPT criar uma particao de boot BIOS de 2Mb</span>
+</code></pre>
+<p><img src="https://i.imgur.com/4V3TYC3.png" alt="Partições"></p>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment">## formatar as particoes</span>
+mkfs.btrfs -L boot /dev/sdax
+
+<span class="token comment">## Começar a encriptação</span>
+cryptsetup luksFormat /dev/sdax
+
+<span class="token comment">## Abrir o drive criptografado como "root"</span>
+cryptsetup <span class="token function">open</span> /dev/sdax root
+
+<span class="token comment">## Formatar o drive encriptado</span>
+mkfs.f2fs -l root /dev/mapper/root
+
+<span class="token comment">## montar as particoes</span>
+<span class="token function">mount</span> /dev/mapper/root /mnt
+<span class="token function">mkdir</span> /mnt/boot
+<span class="token function">mount</span> /dev/sdax /mnt/boot
+
+<span class="token comment">## Encontrar a mirror list mais rápida</span>
+<span class="token function">cd</span> /etc/pacman.d
+<span class="token function">wget</span> <span class="token string">'archlinux.org/mirrorlist/?country=BR'</span> -O mirrorlist
+<span class="token function">sed</span> -i <span class="token string">'s/^#//'</span> mirrorlist
+
+<span class="token comment">## Habilitar libs32</span>
+vim /etc/pacman.conf <span class="token comment"># [multilib]</span>
+
+<span class="token comment">## instalar o sistema base</span>
+pacman -Syy
+pacstrap /mnt base base-devel xorg xorg-apps xorg-drivers xorg-fonts xfce4 xfce4-goodies
+
+<span class="token comment">## gerar o arquivo fstab que decreve as particoes</span>
+genfstab -U -p /mnt <span class="token operator">&gt;&gt;</span> /mnt/etc/fstab
+
+<span class="token comment">## Logando na instalacao com o bash</span>
+arch-chroot /mnt /bin/bash
+
+<span class="token comment">## Instale o vim</span>
+pacman -S gvim
+
+<span class="token comment">## Mude a locale novamente</span>
+vim /etc/locale.gen
+locale-gen
+
+<span class="token comment">## Mude a lingua</span>
+<span class="token keyword">echo</span> LANG<span class="token operator">=</span>en_US.UTF-8 <span class="token operator">&gt;</span> /etc/locale.conf
+<span class="token function">export</span> LANG<span class="token operator">=</span>en_US.UTF-8
+
+<span class="token comment">## setando configuracoes de teclado para que persistam pos reboot</span>
+vim /etc/vconsole.conf
+
+<span class="token comment">## adiciona essas linhas no arquivo e salva</span>
+<span class="token comment">## KEYMAP=br-abnt2</span>
+<span class="token comment">## FONT=Lat2-Terminus16</span>
+<span class="token comment">## FONT_MAP=</span>
+
+<span class="token comment">## setando fuso horario</span>
+<span class="token function">ln</span> -fs /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
+
+<span class="token comment">## sincronizando o relogio de hardware com o do sistema</span>
+hwclock --systohc --utc
+
+<span class="token comment">## configurar os repositorios pacman para 32 e 64</span>
+<span class="token comment">## descomentar multilib</span>
+vim /etc/pacman.conf 
+
+<span class="token comment">## sincronizar os repositorios</span>
+pacman -Syy
+
+<span class="token comment">## criar senha de root</span>
+<span class="token function">passwd</span>
+
+<span class="token comment">## criar usuario e definir senha</span>
+<span class="token function">useradd</span> -m -g <span class="token function">users</span> -G wheel,storage,power -s /bin/bash mat
+<span class="token function">passwd</span> mat
+
+<span class="token comment">## instalar sudo</span>
+pacman -S <span class="token function">sudo</span>
+
+<span class="token comment">## editar os propriedades de sudo</span>
+<span class="token comment">## descomentar a linha que mostra wheel</span>
+EDITOR<span class="token operator">=</span>vim visudo
+
+<span class="token comment">## Configurar o syslinux</span>
+pacman -S gptfdisk syslinux
+keytab-lilo /user/share/jbd/keymaps/i386/qwerty/us.map.gz /usr/share/kbd/keymaps/i386/qwerty/br-abnt2.map.gz <span class="token operator">&gt;</span> /boot/syslinux/br-abnt2.ktl <span class="token comment"># brazil keybind in syslinux</span>
+syslinux-install_update -iam
+vim /boot/syslinux/syslinux.cfg <span class="token comment"># Configure o sdaX com a sua partição root</span>
+</code></pre>
+<p><strong>/boot/syslinux/syslinux.cfg</strong></p>
+<pre><code>KBDMAP br-abnt2.ktl
+
+DEFAULT arch
+LABEl arch
+	LINUX ../
+	APPEND cryptdevice=/dev/sda4:root root=/dev/mapper/root rw
+	INITRD ../
+</code></pre>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment">## Edtar o mkinitcpio</span>
+vim /etc/mkinitcpio.conf
+
+<span class="token comment">## No arquivo, adicione 'keymap' e 'encrypt' nos hooks</span>
+<span class="token comment">## HOOKS=(base udev autodetect modconf block *keymap* *encrypt* filesystems keyboard fsck)</span>
+
+<span class="token comment">## Instale tools do fsck para o f2fs e btrfs </span>
+pacman -S f2fs-tools btrfs-progs
+
+<span class="token comment">## Crie o initcpio</span>
+mkinitcpio -p linux
+
+<span class="token comment">## Configuração de rede</span>
+pacman -S iw wpa_supplicant gnome-keyring
+systemctl <span class="token function">enable</span> wpa_supplicant
+<span class="token function">sudo</span> pacman -S networkmanager network-manager-applet dhclient dialog
+<span class="token function">sudo</span> systemctl <span class="token function">enable</span> NetworkManager
+<span class="token function">sudo</span> systemctl start NetworkManager
+
+<span class="token comment">## Configuração de audio</span>
+pacman -S pulseaudio pavucontrol alsa-utils
+
+<span class="token comment">## Reiniciar</span>
+<span class="token function">reboot</span>
+</code></pre>
+<h2 id="xfce">XFCE</h2>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment">## Configurando o hostname</span>
+hostnamectl set-hostname crazywriter
+
+<span class="token function">cp</span> /etc/X11/xinit/xinitrc ~/.xinitrc
+
+vim ~/.xinitrc <span class="token comment">#(comentar exec xterm ... add exec startxfce4)</span>
+
+<span class="token function">sudo</span> pacman -S xdg-user-dirs
+xdg-user-dirs-update
+
+<span class="token comment">## configurar teclado abnt2 no ambiente X:</span>
+localectl set-x11-keymap br abnt2
+
+<span class="token comment">## instalar slim</span>
+pacman -S slim slim-themes archlinux-themes-slim
+systemctl <span class="token function">enable</span> slim.service
+vim /etc/slim.conf <span class="token comment"># (tema do arch archlinux-simplyblack)</span>
+<span class="token function">reboot</span>
+
+<span class="token comment">## instalar AUR</span>
+<span class="token function">sudo</span> vim /etc/pacman.conf
+
+<span class="token comment">## escrever:</span>
+<span class="token comment">## [archlinuxfr]</span>
+<span class="token comment">## SigLevel = Never</span>
+<span class="token comment">## Server = http://repo.archlinux.fr/$arch</span>
+
+<span class="token function">sudo</span> pacman -Syy
+
+<span class="token comment">## checar se tem atualizacoes</span>
+<span class="token function">sudo</span> pacman -Syu
+
+<span class="token comment">## screenfetch e ttf-liberation para resolver alguns bugs</span>
+<span class="token function">sudo</span> pacman -S screenfetch ttf-liberation
+
+<span class="token comment">## gvfs para auto montar dispositivos USB automaticamente</span>
+<span class="token function">sudo</span> pacman -S gvfs
+
+<span class="token comment">## trizen (ótima interface para o AUR) https://wiki.archlinux.org/index.php/AUR_helpers#Comparison_table</span>
+<span class="token function">git</span> clone <span class="token function">git</span> clone https://aur.archlinux.org/trizen.git
+<span class="token function">cd</span> trizen
+makepkg -si
+</code></pre>
+<h2 id="swap">Swap</h2>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token comment">## Crie a swap</span>
+<span class="token function">sudo</span> mkswap -L swap /dev/sdb4
+
+<span class="token comment">## Configure a cryptoswap (nao pode hibernar assim, a senha é gerada em momento de boot)</span>
+<span class="token function">sudo</span> vim /etc/crypttab
+<span class="token function">sudo</span> vim /etc/fstab
+</code></pre>
+<p><strong>/etc/crypttab</strong></p>
+<pre><code>swap /dev/disk/by-uuid/UUID/dev/random swap,cipher=aes-xts-plain64,size=256
+</code></pre>
+<p><strong>/etc/fstab</strong></p>
+<pre><code>/dev/mapper/swap	none		swap		defaults	0 0
+</code></pre>
+<blockquote>
+<p>É EXTREMAMENTE importanto diminuir o <em>swappiness</em> do sistema em um SSD, siga os passos em <a href="https://wiki.archlinux.org/index.php/Swap#Swappiness">https://wiki.archlinux.org/index.php/Swap#Swappiness</a></p>
+</blockquote>
+<h2 id="oh-my-zsh">Oh-my-zsh</h2>
+<pre class=" language-bash"><code class="prism  language-bash">pacman -S zsh <span class="token function">git</span>
+yaourt oh-my-zsh-git
+<span class="token function">cp</span> /usr/share/oh-my-zsh/zshrc ~/.zshrc
+yaourt zsh-autosuggestions-git
+zsh
+</code></pre>
+<h2 id="pasta-temporária">Pasta temporária</h2>
+<p>Só adicionar isto no fstab, a pasta vai usar um espaço da ram. Ótimo quando tem que clonar um rep git que você não sabe se vai usar no futuro ou por questões de privacidade (os arquivos simplesmente **somem** quando desliga o computador).<br>
+<strong>/etc/fstab</strong></p>
+<pre><code>tmpfs	/home/mat/Documents/temp	tmpfs	mode=0777,noatime	0 0
+</code></pre>
+</div>
+</body>
+
+</html>
