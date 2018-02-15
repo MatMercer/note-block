@@ -6,17 +6,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>2018.01.20-arch-instalacao-xfce</title>
   <link rel="stylesheet" href="https://stackedit.io/style.css" />
-<style>
-pre > code {
-    overflow-x: auto;
-    white-space: pre;
-}
-</style>
+  <style>
+	pre > code {
+    		overflow-x: auto;
+    		white-space: pre;
+	}
+  </style>
 </head>
 
 <body class="stackedit">
-	<div class="stackedit__html"><h1 id="instalação-arch-linux">Instalação Arch Linux por <a href="https://www.github.com/MatMercer">Mateus Mercer</a></h1>
-		Esta instalação foi feita em <b>um ssd kingston 256gb externo</b>, pois nçao tenho dinheiro para comprar um notebook. <b>Esta instalação é para um desktop xfce4, visando a portabilidade (boot em diferentes máquinas)</b>. Tive que tomar algumas decisões para aumentar a portabilidade quando eu fizer boot em diferentes máquinas, por exemplo, no /etc/fdtab eu tive que usar UUID em vez de /dev/XXX. Usei o f2fs para o / e brtfs para o /boot com o root criptografado com LUKS. Tenho que agradecer ao <a href="https://www.youtube.com/watch?v=cvLiQzKPcY8">criador deste vídeo</a>, por introduzir o arch linux <a href="https://www.youtube.com/watch?v=AQxk1uUQ-pQ">e esse</a> por tornar a parte de criptografar o drive muito mais fácil de entender.
+  <div class="stackedit__html"><h1 id="instalação-arch-linux">Instalação Arch Linux por <a href="https://www.github.com/MatMercer">Mateus Mercer</a></h1>
+<p>Esta instalação foi feita em um <strong>SSD kingston 256gb externo</strong>, pois não tenho dinheiro para comprar um notebook. <strong>Esta instalação é para um desktop xfce4, visando a portabilidade (boot em diferentes máquinas)</strong>. Tive que tomar algumas decisões para aumentar a portabilidade para eu fazer boot em diferentes máquinas. Por exemplo, no /etc/fstab eu tive que usar UUID em vez de /dev/XXX. No swap tive que usar tags. Usei o f2fs para o / e brtfs para o /boot com o root criptografado com LUKS. Tenho que agradecer ao <a href="https://www.youtube.com/watch?v=cvLiQzKPcY8">criador deste vídeo</a>, por introduzir o arch linux <a href="https://www.youtube.com/watch?v=AQxk1uUQ-pQ">e esse</a> por tornar a parte de criptografar o drive muito mais fácil de entender.</p>
 <h2 id="base">Base</h2>
 <pre class=" language-bash"><code class="prism  language-bash"><span class="token comment">## Mudar teclado para abnt2</span>
 loadkeys br-abnt2
@@ -92,6 +92,9 @@ vim /etc/vconsole.conf
 <span class="token comment">## setando fuso horario</span>
 <span class="token function">ln</span> -fs /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
 
+<span class="token comment">## Sincrinização automática do relógio</span>
+<span class="token function">sudo</span> systemctl <span class="token function">enable</span> systemd-timesyncd.service
+
 <span class="token comment">## sincronizando o relogio de hardware com o do sistema</span>
 hwclock --systohc --utc
 
@@ -126,16 +129,34 @@ vim /boot/syslinux/syslinux.cfg <span class="token comment"># Configure o sdaX c
 <pre><code>KBDMAP br-abnt2.ktl
 
 DEFAULT arch
-LABEl arch
-	LINUX ../
-	APPEND cryptdevice=/dev/sda4:root root=/dev/mapper/root rw
-	INITRD ../
+PROMPT 1
+TIMEOUT 50
+
+MENU TITLE Arch Linux
+#MENU BACKGROUND splash.png
+MENU COLOR border       30;44   #40ffffff #a0000000 std
+MENU COLOR title        1;36;44 #9033ccff #a0000000 std
+MENU COLOR sel          7;37;40 #e0ffffff #20ffffff all
+MENU COLOR unsel        37;44   #50ffffff #a0000000 std
+MENU COLOR help         37;40   #c0ffffff #a0000000 std
+MENU COLOR timeout_msg  37;40   #80ffffff #00000000 std
+MENU COLOR timeout      1;37;40 #c0ffffff #00000000 std
+MENU COLOR msg07        37;40   #90ffffff #a0000000 std
+MENU COLOR tabmsg 31;40 #30ffffff #00000000 std
+
+UI menu.c32
+
+LABEL arch
+    MENU LABEL Arch Maroto
+    LINUX ../vmlinuz-linux
+    APPEND cryptdevice=/dev/disk/by-uuid/0b2e4e57-8f19-4bf0-9659-d0d4da5cf4d9:root root=/dev/mapper/root rw
+    INITRD ../initramfs-linux.img
 </code></pre>
 <pre class=" language-bash"><code class="prism  language-bash"><span class="token comment">## Edtar o mkinitcpio</span>
 vim /etc/mkinitcpio.conf
 
-<span class="token comment">## No arquivo, adicione 'keymap' e 'encrypt' nos hooks</span>
-<span class="token comment">## HOOKS=(base udev autodetect modconf block *keymap* *encrypt* filesystems keyboard fsck)</span>
+<span class="token comment">## No arquivo, esses hooks são suficientes para fazerem boot em qualquer pedra :)</span>
+<span class="token comment">## HOOKS=(base udev block keyboard autodetect encrypt lvm2 filesystems fsck)</span>
 
 <span class="token comment">## Instale tools do fsck para o f2fs e btrfs </span>
 pacman -S f2fs-tools btrfs-progs
@@ -192,13 +213,18 @@ vim /etc/slim.conf <span class="token comment"># (tema do arch archlinux-simplyb
 <span class="token comment">## screenfetch e ttf-liberation para resolver alguns bugs</span>
 <span class="token function">sudo</span> pacman -S screenfetch ttf-liberation
 
-<span class="token comment">## gvfs para auto montar dispositivos USB automaticamente</span>
-<span class="token function">sudo</span> pacman -S gvfs
+<span class="token comment">## gvfs para auto montar dispositivos USB automaticamente e ntfs-3g para ntfs</span>
+<span class="token function">sudo</span> pacman -S gvfs ntfs-3g
 
 <span class="token comment">## trizen (ótima interface para o AUR) https://wiki.archlinux.org/index.php/AUR_helpers#Comparison_table</span>
 <span class="token function">git</span> clone <span class="token function">git</span> clone https://aur.archlinux.org/trizen.git
 <span class="token function">cd</span> trizen
 makepkg -si
+
+<span class="token comment"># Desativar o "beep" do PC</span>
+<span class="token comment"># https://wiki.archlinux.org/index.php/PC_speaker#Disable_PC_Speaker</span>
+<span class="token keyword">echo</span> <span class="token string">"blacklist pcspkr"</span> <span class="token operator">&gt;</span> /etc/modprobe.d/nobeep.conf
+<span class="token function">sudo</span> rmmod pcspkr
 </code></pre>
 <h2 id="swap">Swap</h2>
 <pre class=" language-bash"><code class="prism  language-bash"><span class="token comment">## Crie a swap</span>
@@ -209,7 +235,7 @@ makepkg -si
 <span class="token function">sudo</span> vim /etc/fstab
 </code></pre>
 <p><strong>/etc/crypttab</strong></p>
-<pre><code>swap /dev/disk/by-uuid/UUID/dev/random swap,cipher=aes-xts-plain64,size=256
+<pre><code>swap /dev/disk/by-uuid/UUID /dev/random swap,cipher=aes-xts-plain64,size=256
 </code></pre>
 <p><strong>/etc/fstab</strong></p>
 <pre><code>/dev/mapper/swap	none		swap		defaults	0 0
@@ -219,16 +245,44 @@ makepkg -si
 </blockquote>
 <h2 id="oh-my-zsh">Oh-my-zsh</h2>
 <pre class=" language-bash"><code class="prism  language-bash">pacman -S zsh <span class="token function">git</span>
-yaourt oh-my-zsh-git
+trizen oh-my-zsh-git
 <span class="token function">cp</span> /usr/share/oh-my-zsh/zshrc ~/.zshrc
-yaourt zsh-autosuggestions-git
+trizen zsh-autosuggestions-git
 zsh
 </code></pre>
 <h2 id="pasta-temporária">Pasta temporária</h2>
-<p>Só adicionar isto no fstab, a pasta vai usar um espaço da ram. Ótimo quando tem que clonar um rep git que você não sabe se vai usar no futuro ou por questões de privacidade (os arquivos simplesmente **somem** quando desliga o computador).<br>
+<p>Só adicionar isto no fstab, a pasta vai usar um espaço da ram. Ótimo quando tem que clonar um rep git que você não sabe se vai usar no futuro por exemplo.<br>
 <strong>/etc/fstab</strong></p>
 <pre><code>tmpfs	/home/mat/Documents/temp	tmpfs	mode=0777,noatime	0 0
 </code></pre>
+<h2 id="touchpad-mais-responsivo">Touchpad mais responsivo</h2>
+<p>Instale o pacote:</p>
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token function">sudo</span> pacman -S xf86-input-synaptics 
+</code></pre>
+<p>Edite  arquivo<br>
+<strong>/etc/X11/xorg.conf.d/10-synaptics.conf</strong></p>
+<pre><code>Section "InputClass"
+    Identifier "touchpad"
+    Driver "synaptics"
+    MatchIsTouchpad "on"
+        Option "TapButton1" "1"
+        Option "TapButton2" "3"
+        Option "TapButton3" "2"
+        Option "VertEdgeScroll" "on"
+        Option "VertTwoFingerScroll" "on"
+        Option "HorizEdgeScroll" "on"
+        Option "HorizTwoFingerScroll" "on"
+        Option "CircularScrolling" "on"
+        Option "CircScrollTrigger" "2"
+        Option "EmulateTwoFingerMinZ" "40"
+        Option "EmulateTwoFingerMinW" "8"
+        Option "CoastingSpeed" "0"
+        Option "FingerLow" "30"
+        Option "FingerHigh" "50"
+        Option "MaxTapTime" "125"
+EndSection
+</code></pre>
+<p>Reinicie o X server.</p>
 </div>
 </body>
 
